@@ -31,6 +31,7 @@ public static class Native
     public const uint CONTEXT64_SEGMENTS = CONTEXT_AMD64 | 0x00000004;
     public const uint CONTEXT64_FLOATING_POINT = CONTEXT_AMD64 | 0x00000008;
     public const uint CONTEXT64_DEBUG_REGISTERS = CONTEXT_AMD64 | 0x00000010;
+    [SuppressMessage("ReSharper", "UnusedMember.Global")] 
     public const uint CONTEXT64_ALL = CONTEXT64_CONTROL | CONTEXT64_INTEGER | CONTEXT64_SEGMENTS | CONTEXT64_FLOATING_POINT | CONTEXT64_DEBUG_REGISTERS;
 
     // --- Context Flags (ARM64) ---
@@ -39,6 +40,7 @@ public static class Native
     public const uint CONTEXTARM64_INTEGER = CONTEXT_ARM64 | 0x00000002;
     public const uint CONTEXTARM64_FLOATING_POINT = CONTEXT_ARM64 | 0x00000004;
     public const uint CONTEXTARM64_DEBUG_REGISTERS = CONTEXT_ARM64 | 0x00000008;
+    [SuppressMessage("ReSharper", "UnusedMember.Global")]
     public const uint CONTEXTARM64_ALL = CONTEXTARM64_CONTROL | CONTEXTARM64_INTEGER | CONTEXTARM64_FLOATING_POINT | CONTEXTARM64_DEBUG_REGISTERS;
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]

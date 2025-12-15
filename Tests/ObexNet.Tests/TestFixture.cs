@@ -1,4 +1,6 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.Versioning;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ObexNet.Tests;
@@ -6,6 +8,33 @@ namespace ObexNet.Tests;
 public abstract class TestFixture
 {
     protected const string DllName = "ObexNet.TestDll.dll";
+    
+    protected TestFixture()
+    {
+        // Ensure we are running in a 64-bit process (x64 or Arm64)
+        if (IntPtr.Size == 4)
+        {
+            throw new PlatformNotSupportedException("ObexNet tests must be run in a 64-bit process. 32-bit architecture is not supported.");
+        }
+    }
+
+    protected string GetTargetFrameworkMoniker()
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var attr = assembly.GetCustomAttribute<TargetFrameworkAttribute>();
+
+        if (attr != null)
+        {
+            var frameworkName = new FrameworkName(attr.FrameworkName);
+            if (frameworkName.Identifier == ".NETCoreApp")
+            {
+                // Converts ".NETCoreApp,Version=v8.0" to "net8.0"
+                return $"net{frameworkName.Version.Major}.{frameworkName.Version.Minor}";
+            }
+        }
+        
+        return "net8.0"; // Fallback default
+    }
     
     protected string GetBuildConfig(DirectoryInfo currentDir)
     {
@@ -35,9 +64,10 @@ public abstract class TestFixture
     {
         var solutionDir = GetSolutionRoot();
         var buildConfig = GetBuildConfig(new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory));
+        var tfm = GetTargetFrameworkMoniker();
 
-        // Look for ObexNet/bin/Debug/net10.0/ObexNet.exe relative to solution
-        var path = Path.Combine(solutionDir.FullName, "ObexNet", "bin", buildConfig, "net10.0", "ObexNet.exe");
+        // Dynamic TFM usage
+        var path = Path.Combine(solutionDir.FullName, "ObexNet", "bin", buildConfig, tfm, "ObexNet.exe");
         
         if (!File.Exists(path))
         {
@@ -55,9 +85,10 @@ public abstract class TestFixture
         // 2. Search known locations relative to solution root
         var solutionDir = GetSolutionRoot();
         var buildConfig = GetBuildConfig(new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory));
+        var tfm = GetTargetFrameworkMoniker();
 
         var path = Path.Combine(
-            solutionDir.FullName, "Tests", "ObexNet.Tests", "bin", buildConfig, "net10.0", DllName);
+            solutionDir.FullName, "Tests", "ObexNet.Tests", "bin", buildConfig, tfm, DllName);
 
         if (File.Exists(path)) return path;
 

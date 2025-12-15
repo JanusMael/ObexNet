@@ -1,9 +1,11 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using Win64;
 
+[SuppressMessage("ReSharper", "UnusedMethodReturnValue.Local")]
 unsafe class Program
 {
     // --- Global State ---
@@ -13,18 +15,18 @@ unsafe class Program
     static IntPtr _remoteLdrAddr = IntPtr.Zero;
     static byte[] _origBytes = []; 
     static IntPtr _hProc = IntPtr.Zero;
-    static uint _pendingRearmTid = 0;
+    static uint _pendingRearmTid;
     static bool _isFirstDll = true;
 
     // --- Configuration Flags ---
-    static bool _silentMode = false;
-    static bool _jsonOutput = false;
-    static bool _interactiveMode = false;
-    static bool _fakeSuccess = false;
-    static bool _followChildren = false;
+    static bool _silentMode;
+    static bool _jsonOutput;
+    static bool _interactiveMode;
+    static bool _fakeSuccess;
+    static bool _followChildren;
 
     // --- Architecture State ---
-    static bool _isArm64 = false;
+    static bool _isArm64;
     static byte[] _bpBytes = [];
 
     static void Main(string[] args)
@@ -106,7 +108,6 @@ unsafe class Program
 
         var si = new StartupInfo();
         si.cb = (uint)Marshal.SizeOf(si);
-        var pi = new ProcessInformation();
 
         var creationFlags = Native.DEBUG_ONLY_THIS_PROCESS;
         if (_followChildren)
@@ -124,7 +125,7 @@ unsafe class Program
             IntPtr.Zero,
             null,
             ref si,
-            out pi);
+            out ProcessInformation pi);
 
         if (!success)
         {
@@ -136,11 +137,10 @@ unsafe class Program
         _hProc = pi.hProcess;
 
         var done = false;
-        var debugEvent = new DebugEvent();
 
         while (!done)
         {
-            if (!Native.WaitForDebugEvent(out debugEvent, Native.INFINITE))
+            if (!Native.WaitForDebugEvent(out DebugEvent debugEvent, Native.INFINITE))
             {
                 LogError($"WaitForDebugEvent failed: {Marshal.GetLastWin32Error()}");
                 break;
@@ -178,7 +178,6 @@ unsafe class Program
                             if (ret == 2 || ret == 1)
                             {
                                 continueStatus = Native.DBG_CONTINUE;
-                                break;
                             }
                         }
                         else
@@ -231,7 +230,7 @@ unsafe class Program
             var result = Native.GetFinalPathNameByHandle(debugEvent.LoadDll.hFile, sb, 1024, 0);
             if (result > 0)
             {
-                dllName = System.IO.Path.GetFileName(sb.ToString());
+                dllName = Path.GetFileName(sb.ToString());
             }
             Native.CloseHandle(debugEvent.LoadDll.hFile);
         }
@@ -273,8 +272,8 @@ unsafe class Program
                     }
                 }
 
-                var offset = (long)localLdr - (long)localNtdll;
-                _remoteLdrAddr = new IntPtr((long)_remoteNtdllBase + offset);
+                var offset = localLdr - (long) localNtdll;
+                _remoteLdrAddr = new IntPtr(_remoteNtdllBase + offset);
 
                 SetBreakpoint(_remoteLdrAddr, out _origBytes);
                 LogInfo($"Hooked LdrLoadDll at 0x{_remoteLdrAddr:X} (ntdll at 0x{_remoteNtdllBase:X})");
@@ -282,6 +281,7 @@ unsafe class Program
         }
     }
 
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
     static int HandleLdrCall(uint threadId)
     {
         var hThread = Native.OpenThread(Native.THREAD_ALL_ACCESS, false, threadId);
@@ -317,10 +317,10 @@ unsafe class Program
             WriteCode(_remoteLdrAddr, _origBytes, _bpBytes.Length);
 
             // Variables to hold register values generically
-            ulong ip = 0;
-            ulong arg3_DllNamePtr = 0; 
-            ulong arg4_ResultPtr = 0;
-            ulong retAddr = 0; // Only needed for x64 stack fix, or LR on Arm64
+            ulong ip;
+            ulong arg3_DllNamePtr; 
+            ulong arg4_ResultPtr;
+            ulong retAddr; // Only needed for x64 stack fix, or LR on Arm64
 
             // --- Read Registers ---
             if (_isArm64)
@@ -345,6 +345,8 @@ unsafe class Program
                 // Write back rewound RIP
                 Marshal.StructureToPtr(ctx, pAligned, false);
             }
+            
+            LogDebug($"{nameof(ip)}={ip}");
 
             // --- Analyze Arguments ---
             var shouldBlock = false;
@@ -520,7 +522,7 @@ unsafe class Program
     static bool ShouldBlockDll(string? dllPath)
     {
         if (string.IsNullOrEmpty(dllPath)) return false;
-        var fname = System.IO.Path.GetFileName(dllPath);
+        var fname = Path.GetFileName(dllPath);
 
         foreach (var pattern in _dllBlockPatterns)
         {
@@ -607,11 +609,17 @@ unsafe class Program
         Console.WriteLine($"[!] {message}");
     }
 
+    [SuppressMessage("ReSharper", "RedundantAnonymousTypePropertyName")]
     static void LogError(string message)
     {
         if (_jsonOutput)
         {
-            var json = JsonSerializer.Serialize(new { type = "error", message = message });
+            var json = JsonSerializer.Serialize(
+                new
+                {
+                    type = "error",
+                    message = message 
+                });
             Console.WriteLine(json);
         }
         else
@@ -620,23 +628,30 @@ unsafe class Program
         }
     }
 
+    [SuppressMessage("ReSharper", "UnusedParameter.Local")]
     static void LogDebug(string message)
     {
         if (_silentMode || _jsonOutput) return;
-        // Console.WriteLine($"[Debug] {message}"); // Uncomment for verbose debug
+        
+#if DEBUG
+        Console.WriteLine($"[Debug] {message}");
+#endif
     }
 
+    [SuppressMessage("ReSharper", "RedundantAnonymousTypePropertyName")]
     static void LogEvent(string type, string target)
     {
         if (_jsonOutput)
         {
-            var json = JsonSerializer.Serialize(new 
-            { 
-                timestamp = DateTime.UtcNow,
-                type = type, 
-                target = target,
-                action = _fakeSuccess ? "fake_success" : "block"
-            });
+            var json = JsonSerializer.Serialize(
+                new 
+                { 
+                    timestamp = DateTime.UtcNow,
+                    type = type, 
+                    target = target,
+                    action = _fakeSuccess ? "fake_success" : "block"
+                }
+            );
             Console.WriteLine(json);
         }
         else

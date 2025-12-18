@@ -5,6 +5,7 @@ using System.Text;
 namespace Win64;
 
 [SuppressMessage("ReSharper", "InconsistentNaming")]
+[SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
 public static class Native
 {
     public const int DEBUG_PROCESS = 0x00000001;

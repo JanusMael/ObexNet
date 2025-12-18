@@ -60,7 +60,7 @@ public abstract class TestFixture
         return null; // Unreachable
     }
 
-    protected string GetObexPath()
+    protected static string GetObexPath()
     {
         var solutionDir = GetSolutionRoot();
         var buildConfig = GetBuildConfig(new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory));
@@ -76,7 +76,7 @@ public abstract class TestFixture
         return path;
     }
 
-    protected string GetTestDllPath()
+    protected static string GetTestDllPath()
     {
         // 1. Check local output (standard for ProjectReference)
         var localPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DllName);

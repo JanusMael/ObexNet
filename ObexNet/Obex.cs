@@ -95,7 +95,7 @@ public unsafe class Obex
             IntPtr.Zero,
             null,
             ref si,
-            out ProcessInformation pi);
+            out var pi);
 
         if (!success)
         {
@@ -110,7 +110,7 @@ public unsafe class Obex
 
         while (!done)
         {
-            if (!Native.WaitForDebugEvent(out DebugEvent debugEvent, Native.INFINITE))
+            if (!Native.WaitForDebugEvent(out var debugEvent, Native.INFINITE))
             {
                 LogError($"WaitForDebugEvent failed: {Marshal.GetLastWin32Error()}");
                 break;
@@ -265,7 +265,7 @@ public unsafe class Obex
         }
 
         // Determine Context Size and Alignment based on Arch
-        int ctxSize = _isArm64 ? Marshal.SizeOf(typeof(ContextArm64)) : Marshal.SizeOf(typeof(Context64));
+        var ctxSize = _isArm64 ? Marshal.SizeOf(typeof(ContextArm64)) : Marshal.SizeOf(typeof(Context64));
         var pRaw = Marshal.AllocHGlobal(ctxSize + 16);
         var pAligned = new IntPtr((pRaw.ToInt64() + 15) & ~15);
 
@@ -365,7 +365,7 @@ public unsafe class Obex
             {
                 Console.Write($"[?] Block loading of '{dllName}'? (Y/n): ");
                 var input = Console.ReadLine();
-                if (!string.IsNullOrWhiteSpace(input) && input.Trim().ToLower().StartsWith("n"))
+                if (!string.IsNullOrWhiteSpace(input) && input.Trim().ToLower().StartsWith('n'))
                 {
                     SetTfHandling(hThread, pAligned, threadId);
                     return 1;
@@ -434,7 +434,7 @@ public unsafe class Obex
         if (hThread == IntPtr.Zero) return;
 
         // Determine Context Size
-        int ctxSize = _isArm64 ? Marshal.SizeOf(typeof(ContextArm64)) : Marshal.SizeOf(typeof(Context64));
+        var ctxSize = _isArm64 ? Marshal.SizeOf(typeof(ContextArm64)) : Marshal.SizeOf(typeof(Context64));
         var pRaw = Marshal.AllocHGlobal(ctxSize + 16);
         var pAligned = new IntPtr((pRaw.ToInt64() + 15) & ~15);
 
@@ -499,7 +499,7 @@ public unsafe class Obex
 
         foreach (var pattern in _dllBlockPatterns)
         {
-            if (pattern.Contains("*") || pattern.Contains("?"))
+            if (pattern.Contains('*') || pattern.Contains('?'))
             {
                 var regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
                 if (Regex.IsMatch(fname, regexPattern, RegexOptions.IgnoreCase)) return true;
@@ -523,22 +523,19 @@ public unsafe class Obex
 
     private bool ReadRemote(IntPtr addr, byte[] buffer, int size)
     {
-        int bytesRead;
-        return Native.ReadProcessMemory(_hProc, addr, buffer, size, out bytesRead) && bytesRead == size;
+        return Native.ReadProcessMemory(_hProc, addr, buffer, size, out var bytesRead) && bytesRead == size;
     }
 
     private bool WriteRemote(IntPtr addr, byte[] buffer, int size)
     {
-        int bytesWritten;
-        var res = Native.WriteProcessMemory(_hProc, addr, buffer, size, out bytesWritten) && bytesWritten == size;
+        var res = Native.WriteProcessMemory(_hProc, addr, buffer, size, out var bytesWritten) && bytesWritten == size;
         if (res) Native.FlushInstructionCache(_hProc, addr, (uint)size);
         return res;
     }
 
     private bool WriteCode(IntPtr addr, byte[] buffer, int size)
     {
-        uint oldProt;
-        if (!Native.VirtualProtectEx(_hProc, addr, (uint)size, Native.PAGE_READWRITE, out oldProt)) return false;
+        if (!Native.VirtualProtectEx(_hProc, addr, (uint)size, Native.PAGE_READWRITE, out var oldProt)) return false;
         var ok = WriteRemote(addr, buffer, size);
         Native.VirtualProtectEx(_hProc, addr, (uint)size, oldProt, out _);
         return ok;
@@ -546,16 +543,18 @@ public unsafe class Obex
 
     // --- Logging Helpers ---
 
-    private void PrintBanner()
+    private static void PrintBanner()
     {
-        Console.WriteLine(@"
-   ____  _              _   _      _   
-  / __ \| |            | \ | |    | |  
- | |  | | |__   ___  __|  \| | ___| |_ 
- | |  | | '_ \ / _ \/ _` . ` |/ _ \ __|
- | |__| | |_) |  __/ (_| |\  |  __/ |_ 
-  \____/|_.__/ \___|\__,_| \_|\___|\__|
-                                       ");
+        Console.WriteLine("""
+
+                             ____  _              _   _      _   
+                            / __ \| |            | \ | |    | |  
+                           | |  | | |__   ___  __|  \| | ___| |_ 
+                           | |  | | '_ \ / _ \/ _` . ` |/ _ \ __|
+                           | |__| | |_) |  __/ (_| |\  |  __/ |_ 
+                            \____/|_.__/ \___|\__,_| \_|\___|\__|
+                                                                 
+                          """);
     }
 
     private void LogInfo(string message)

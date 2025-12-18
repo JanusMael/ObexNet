@@ -15,6 +15,7 @@
       <DocumentationFile>bin\Debug\ObexNet.xml</DocumentationFile>
       <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
       <NoWarn>1701;1702;CS1591</NoWarn>
+      <PlatformTarget>AnyCPU</PlatformTarget>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
@@ -22,6 +23,7 @@
       <DocumentationFile>bin\Release\ObexNet.xml</DocumentationFile>
       <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
       <NoWarn>1701;1702;CS1591</NoWarn>
+      <PlatformTarget>AnyCPU</PlatformTarget>
     </PropertyGroup>
 
 </Project>

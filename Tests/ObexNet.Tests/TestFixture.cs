@@ -18,7 +18,7 @@ public abstract class TestFixture
         }
     }
 
-    protected string GetTargetFrameworkMoniker()
+    protected static string GetTargetFrameworkMoniker()
     {
         var assembly = Assembly.GetExecutingAssembly();
         var attr = assembly.GetCustomAttribute<TargetFrameworkAttribute>();
@@ -36,12 +36,12 @@ public abstract class TestFixture
         return "net8.0"; // Fallback default
     }
     
-    protected string GetBuildConfig(DirectoryInfo currentDir)
+    protected static string GetBuildConfig(DirectoryInfo currentDir)
     {
         return currentDir.FullName.Contains("Release") ? "Release" : "Debug";
     }
 
-    protected DirectoryInfo GetSolutionRoot()
+    protected static DirectoryInfo GetSolutionRoot()
     {
         var currentDir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
         var searchDir = currentDir;

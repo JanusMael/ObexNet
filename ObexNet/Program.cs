@@ -4,9 +4,9 @@ namespace ObexNet;
 
 [SuppressMessage("ReSharper", "UnusedMethodReturnValue.Local")]
 [SuppressMessage("ReSharper", "RedundantUnsafeContext")]
-public unsafe class Program
+public static unsafe class Program
 {
-    static void Main(string[] args)
+    private static void Main(string[] args)
     {
         if (IntPtr.Size == 4)
         {
@@ -86,7 +86,7 @@ public unsafe class Program
         }
     }
 
-    static void PrintUsage()
+    private static void PrintUsage()
     {
         Console.WriteLine("Usage: ObexNet.exe \"<command>\" [patterns] [options]");
         Console.WriteLine("Options:");

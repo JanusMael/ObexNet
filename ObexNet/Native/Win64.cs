@@ -2,10 +2,42 @@
 
 namespace Win64;
 
+public static class Imports
+{
+    public const string NtDll = "ntdll.dll";
+    public const string Kernel32 = "kernel32.dll";
+}
+
 // ==============================================================================================
 // 2. XMM_SAVE_AREA32
 // ==============================================================================================
 
+/// <summary>
+/// Represents the XMM save area used in the context structure for x64 processors.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _XMM_SAVE_AREA32 {
+///     WORD   ControlWord;
+///     WORD   StatusWord;
+///     BYTE   TagWord;
+///     BYTE   Reserved1;
+///     WORD   ErrorOpcode;
+///     DWORD  ErrorOffset;
+///     WORD   ErrorSelector;
+///     WORD   Reserved2;
+///     DWORD  DataOffset;
+///     WORD   DataSelector;
+///     WORD   Reserved3;
+///     DWORD  MxCsr;
+///     DWORD  MxCsr_Mask;
+///     M128A  FloatRegisters[8];
+///     M128A  XmmRegisters[16];
+///     BYTE   Reserved4[96];
+/// } XMM_SAVE_AREA32, *PXMM_SAVE_AREA32;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public unsafe struct XmmSaveArea32
 {
@@ -31,6 +63,84 @@ public unsafe struct XmmSaveArea32
 // 3. CONTEXT (x64)
 // ==============================================================================================
 
+/// <summary>
+/// Contains processor-specific register data for an x64 (AMD64) thread.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition (from winnt.h):</para>
+/// <code>
+/// typedef struct DECLSPEC_ALIGN(16) _CONTEXT {
+///     DWORD64 P1Home;
+///     DWORD64 P2Home;
+///     DWORD64 P3Home;
+///     DWORD64 P4Home;
+///     DWORD64 P5Home;
+///     DWORD64 P6Home;
+///     DWORD   ContextFlags;
+///     DWORD   MxCsr;
+///     WORD    SegCs;
+///     WORD    SegDs;
+///     WORD    SegEs;
+///     WORD    SegFs;
+///     WORD    SegGs;
+///     WORD    SegSs;
+///     DWORD   EFlags;
+///     DWORD64 Dr0;
+///     DWORD64 Dr1;
+///     DWORD64 Dr2;
+///     DWORD64 Dr3;
+///     DWORD64 Dr6;
+///     DWORD64 Dr7;
+///     DWORD64 Rax;
+///     DWORD64 Rcx;
+///     DWORD64 Rdx;
+///     DWORD64 Rbx;
+///     DWORD64 Rsp;
+///     DWORD64 Rbp;
+///     DWORD64 Rsi;
+///     DWORD64 Rdi;
+///     DWORD64 R8;
+///     DWORD64 R9;
+///     DWORD64 R10;
+///     DWORD64 R11;
+///     DWORD64 R12;
+///     DWORD64 R13;
+///     DWORD64 R14;
+///     DWORD64 R15;
+///     DWORD64 Rip;
+///     union {
+///         XMM_SAVE_AREA32 FltSave;
+///         struct {
+///             M128A Header[2];
+///             M128A Legacy[8];
+///             M128A Xmm0;
+///             M128A Xmm1;
+///             M128A Xmm2;
+///             M128A Xmm3;
+///             M128A Xmm4;
+///             M128A Xmm5;
+///             M128A Xmm6;
+///             M128A Xmm7;
+///             M128A Xmm8;
+///             M128A Xmm9;
+///             M128A Xmm10;
+///             M128A Xmm11;
+///             M128A Xmm12;
+///             M128A Xmm13;
+///             M128A Xmm14;
+///             M128A Xmm15;
+///         } DUMMYSTRUCTNAME;
+///     } DUMMYUNIONNAME;
+///     M128A VectorRegister[26];
+///     DWORD64 VectorControl;
+///     DWORD64 DebugControl;
+///     DWORD64 LastBranchToRip;
+///     DWORD64 LastBranchFromRip;
+///     DWORD64 LastExceptionToRip;
+///     DWORD64 LastExceptionFromRip;
+/// } CONTEXT, *PCONTEXT;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = 1232)]
 public unsafe struct Context64
 {
@@ -93,6 +203,22 @@ public unsafe struct Context64
 // 4. DEBUG_EVENT and Dependencies
 // ==============================================================================================
 
+/// <summary>
+/// Describes an exception.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _EXCEPTION_RECORD {
+///     DWORD                    ExceptionCode;
+///     DWORD                    ExceptionFlags;
+///     struct _EXCEPTION_RECORD *ExceptionRecord;
+///     PVOID                    ExceptionAddress;
+///     DWORD                    NumberParameters;
+///     ULONG_PTR                ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
+/// } EXCEPTION_RECORD, *PEXCEPTION_RECORD;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public unsafe struct ExceptionRecord
 {
@@ -104,6 +230,18 @@ public unsafe struct ExceptionRecord
     public fixed ulong ExceptionInformation[15];
 }
 
+/// <summary>
+/// Contains exception information that allows a debugger to service an exception.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _EXCEPTION_DEBUG_INFO {
+///     EXCEPTION_RECORD ExceptionRecord;
+///     DWORD            dwFirstChance;
+/// } EXCEPTION_DEBUG_INFO, *LPEXCEPTION_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct ExceptionDebugInfo
 {
@@ -111,6 +249,19 @@ public struct ExceptionDebugInfo
     public uint dwFirstChance;
 }
 
+/// <summary>
+/// Contains thread creation information that can be used by a debugger.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _CREATE_THREAD_DEBUG_INFO {
+///     HANDLE hThread;
+///     LPVOID lpThreadLocalBase;
+///     LPTHREAD_START_ROUTINE lpStartAddress;
+/// } CREATE_THREAD_DEBUG_INFO, *LPCREATE_THREAD_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct CreateThreadDebugInfo
 {
@@ -119,6 +270,26 @@ public struct CreateThreadDebugInfo
     public IntPtr lpStartAddress;
 }
 
+/// <summary>
+/// Contains process creation information that can be used by a debugger.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _CREATE_PROCESS_DEBUG_INFO {
+///     HANDLE hFile;
+///     HANDLE hProcess;
+///     HANDLE hThread;
+///     LPVOID lpBaseOfImage;
+///     DWORD  dwDebugInfoFileOffset;
+///     DWORD  nDebugInfoSize;
+///     LPVOID lpThreadLocalBase;
+///     LPTHREAD_START_ROUTINE lpStartAddress;
+///     LPVOID lpImageName;
+///     WORD   fUnicode;
+/// } CREATE_PROCESS_DEBUG_INFO, *LPCREATE_PROCESS_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct CreateProcessDebugInfo
 {
@@ -134,18 +305,56 @@ public struct CreateProcessDebugInfo
     public ushort fUnicode;
 }
 
+/// <summary>
+/// Contains the exit code for a terminating thread.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _EXIT_THREAD_DEBUG_INFO {
+///     DWORD dwExitCode;
+/// } EXIT_THREAD_DEBUG_INFO, *LPEXIT_THREAD_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct ExitThreadDebugInfo
 {
     public uint dwExitCode;
 }
 
+/// <summary>
+/// Contains the exit code for a terminating process.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _EXIT_PROCESS_DEBUG_INFO {
+///     DWORD dwExitCode;
+/// } EXIT_PROCESS_DEBUG_INFO, *LPEXIT_PROCESS_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct ExitProcessDebugInfo
 {
     public uint dwExitCode;
 }
 
+/// <summary>
+/// Contains information about a dynamic-link library (DLL) that has just been loaded.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _LOAD_DLL_DEBUG_INFO {
+///     HANDLE hFile;
+///     LPVOID lpBaseOfDll;
+///     DWORD  dwDebugInfoFileOffset;
+///     DWORD  nDebugInfoSize;
+///     LPVOID lpImageName;
+///     WORD   fUnicode;
+/// } LOAD_DLL_DEBUG_INFO, *LPLOAD_DLL_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct LoadDllDebugInfo
 {
@@ -157,12 +366,36 @@ public struct LoadDllDebugInfo
     public ushort fUnicode;
 }
 
+/// <summary>
+/// Contains information about a dynamic-link library (DLL) that has just been unloaded.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _UNLOAD_DLL_DEBUG_INFO {
+///     LPVOID lpBaseOfDll;
+/// } UNLOAD_DLL_DEBUG_INFO, *LPUNLOAD_DLL_DEBUG_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct UnloadDllDebugInfo
 {
     public IntPtr lpBaseOfDll;
 }
 
+/// <summary>
+/// Contains the address, format, and length of a debugging string.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _OUTPUT_DEBUG_STRING_INFO {
+///     LPSTR lpDebugStringData;
+///     WORD  fUnicode;
+///     WORD  nDebugStringLength;
+/// } OUTPUT_DEBUG_STRING_INFO, *LPOUTPUT_DEBUG_STRING_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct OutputDebugStringInfo
 {
@@ -171,6 +404,18 @@ public struct OutputDebugStringInfo
     public ushort nDebugStringLength;
 }
 
+/// <summary>
+/// Contains the error associated with a RIP_EVENT debug event.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _RIP_INFO {
+///     DWORD dwError;
+///     DWORD dwType;
+/// } RIP_INFO, *LPRIP_INFO;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct RipInfo
 {
@@ -178,6 +423,30 @@ public struct RipInfo
     public uint dwType;
 }
 
+/// <summary>
+/// Describes a debugging event.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _DEBUG_EVENT {
+///     DWORD dwDebugEventCode;
+///     DWORD dwProcessId;
+///     DWORD dwThreadId;
+///     union {
+///         EXCEPTION_DEBUG_INFO      Exception;
+///         CREATE_THREAD_DEBUG_INFO  CreateThread;
+///         CREATE_PROCESS_DEBUG_INFO CreateProcessInfo;
+///         EXIT_THREAD_DEBUG_INFO    ExitThread;
+///         EXIT_PROCESS_DEBUG_INFO   ExitProcess;
+///         LOAD_DLL_DEBUG_INFO       LoadDll;
+///         UNLOAD_DLL_DEBUG_INFO     UnloadDll;
+///         OUTPUT_DEBUG_STRING_INFO  DebugString;
+///         RIP_INFO                  RipInfo;
+///     } u;
+/// } DEBUG_EVENT, *LPDEBUG_EVENT;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Explicit)]
 public struct DebugEvent
 {
@@ -200,6 +469,19 @@ public struct DebugEvent
 // 5. Additional Process Creation Structures
 // ==============================================================================================
 
+/// <summary>
+/// The UNICODE_STRING structure is used to define Unicode strings.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition (from subauth.h/winternl.h):</para>
+/// <code>
+/// typedef struct _UNICODE_STRING {
+///     USHORT Length;
+///     USHORT MaximumLength;
+///     PWSTR  Buffer;
+/// } UNICODE_STRING, *PUNICODE_STRING;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct UnicodeString
 {
@@ -208,6 +490,34 @@ public struct UnicodeString
     public IntPtr Buffer;
 }
 
+/// <summary>
+/// Specifies the window station, desktop, standard handles, and appearance of the main window for a process at creation time.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _STARTUPINFOA {
+///     DWORD  cb;
+///     LPSTR  lpReserved;
+///     LPSTR  lpDesktop;
+///     LPSTR  lpTitle;
+///     DWORD  dwX;
+///     DWORD  dwY;
+///     DWORD  dwXSize;
+///     DWORD  dwYSize;
+///     DWORD  dwXCountChars;
+///     DWORD  dwYCountChars;
+///     DWORD  dwFillAttribute;
+///     DWORD  dwFlags;
+///     WORD   wShowWindow;
+///     WORD   cbReserved2;
+///     LPBYTE lpReserved2;
+///     HANDLE hStdInput;
+///     HANDLE hStdOutput;
+///     HANDLE hStdError;
+/// } STARTUPINFOA, *LPSTARTUPINFOA;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct StartupInfo
 {
@@ -231,6 +541,20 @@ public struct StartupInfo
     public IntPtr hStdError;
 }
 
+/// <summary>
+/// Contains information about a newly created process and its primary thread.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition:</para>
+/// <code>
+/// typedef struct _PROCESS_INFORMATION {
+///     HANDLE hProcess;
+///     HANDLE hThread;
+///     DWORD  dwProcessId;
+///     DWORD  dwThreadId;
+/// } PROCESS_INFORMATION, *LPPROCESS_INFORMATION;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Sequential)]
 public struct ProcessInformation
 {
@@ -244,6 +568,63 @@ public struct ProcessInformation
 // 6. CONTEXT (ARM64)
 // ==============================================================================================
 
+/// <summary>
+/// Contains processor-specific register data for an ARM64 thread.
+/// </summary>
+/// <remarks>
+/// <para>Original C definition (from winnt.h):</para>
+/// <code>
+/// typedef struct _CONTEXT {
+///     DWORD ContextFlags;
+///     DWORD Cpsr;
+///     union {
+///         struct {
+///             DWORD64 X0;
+///             DWORD64 X1;
+///             DWORD64 X2;
+///             DWORD64 X3;
+///             DWORD64 X4;
+///             DWORD64 X5;
+///             DWORD64 X6;
+///             DWORD64 X7;
+///             DWORD64 X8;
+///             DWORD64 X9;
+///             DWORD64 X10;
+///             DWORD64 X11;
+///             DWORD64 X12;
+///             DWORD64 X13;
+///             DWORD64 X14;
+///             DWORD64 X15;
+///             DWORD64 X16;
+///             DWORD64 X17;
+///             DWORD64 X18;
+///             DWORD64 X19;
+///             DWORD64 X20;
+///             DWORD64 X21;
+///             DWORD64 X22;
+///             DWORD64 X23;
+///             DWORD64 X24;
+///             DWORD64 X25;
+///             DWORD64 X26;
+///             DWORD64 X27;
+///             DWORD64 X28;
+///             DWORD64 Fp;
+///             DWORD64 Lr;
+///         };
+///         DWORD64 X[31];
+///     };
+///     DWORD64 Sp;
+///     DWORD64 Pc;
+///     NEON128 V[32];
+///     DWORD Fpcr;
+///     DWORD Fpsr;
+///     DWORD Bcr[ARM64_MAX_BREAKPOINTS];
+///     DWORD64 Bvr[ARM64_MAX_BREAKPOINTS];
+///     DWORD Wcr[ARM64_MAX_WATCHPOINTS];
+///     DWORD64 Wvr[ARM64_MAX_WATCHPOINTS];
+/// } CONTEXT, *PCONTEXT;
+/// </code>
+/// </remarks>
 [StructLayout(LayoutKind.Explicit, Size = 912)]
 public unsafe struct ContextArm64
 {

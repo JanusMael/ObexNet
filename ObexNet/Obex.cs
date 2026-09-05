@@ -5,10 +5,10 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using Win64;
 
-namespace ObexNet;
+namespace Bennewitz.Ninja.ObexNet;
 
 [SuppressMessage("ReSharper", "UnusedMethodReturnValue.Local")]
-public unsafe class Obex
+public sealed unsafe class Obex
 {
     // --- Global State ---
     private readonly List<string> _dllBlockPatterns = [];
@@ -29,6 +29,25 @@ public unsafe class Obex
 
     // --- Architecture State ---
     private bool _isArm64;
+    /// <summary>
+    /// Byte sequence representing a Windows debug breakpoint
+    /// </summary>
+    /// <remarks>
+    /// <list type="table">
+    ///     <listheader>
+    ///         <term>Architecture</term>
+    ///         <description>Instruction</description>
+    ///     </listheader>
+    ///     <item>
+    ///         <term>X64</term>
+    ///         <description>INT 3</description>
+    ///     </item>
+    ///     <item>
+    ///         <term>ARM64</term>
+    ///         <description><p>$BRK #0xF000</p><p>Opcode: 0xD43E0000 (Little Endian: 00 00 3E D4)</p></description>
+    ///     </item>
+    /// </list>
+    /// </remarks>
     private byte[] _bpBytes = [];
 
     public Obex(IEnumerable<string> blockPatterns, bool silentMode, bool jsonOutput, bool interactiveMode, bool fakeSuccess, bool followChildren)
@@ -45,23 +64,22 @@ public unsafe class Obex
 
     private void InitializeArchitecture()
     {
-        var arch = RuntimeInformation.ProcessArchitecture;
-        if (arch == Architecture.Arm64)
+        var arch = AssemblyUtility.GetSupportedArchitectureOrThrow();
+        switch (arch)
         {
-            _isArm64 = true;
-            // BRK #0xF000 (Windows debug breakpoint for Arm64)
-            // Opcode: 0xD43E0000 (Little Endian: 00 00 3E D4)
-            _bpBytes = [0x00, 0x00, 0x3E, 0xD4];
-        }
-        else if (arch == Architecture.X64)
-        {
-            _isArm64 = false;
-            // INT 3
-            _bpBytes = [0xCC];
-        }
-        else
-        {
-            throw new PlatformNotSupportedException($"Unsupported Architecture: {arch}");
+            case Architecture.Arm64:
+                _isArm64 = true;
+                // BRK #0xF000 (Windows debug breakpoint for Arm64)
+                // Opcode: 0xD43E0000 (Little Endian: 00 00 3E D4)
+                _bpBytes = [0x00, 0x00, 0x3E, 0xD4];
+                break;
+            case Architecture.X64:
+                _isArm64 = false;
+                // INT 3
+                _bpBytes = [0xCC];
+                break;
+            default:
+                throw new PlatformNotSupportedException($"Unsupported Architecture: {arch}");
         }
     }
 
@@ -124,12 +142,8 @@ public unsafe class Obex
                     if (_followChildren && debugEvent.dwProcessId != pi.dwProcessId)
                     {
                         LogInfo($"Attached to child process PID: {debugEvent.dwProcessId}");
-                        Native.CloseHandle(debugEvent.CreateProcessInfo.hFile);
                     }
-                    else
-                    {
-                        Native.CloseHandle(debugEvent.CreateProcessInfo.hFile);
-                    }
+                    Native.CloseHandle(debugEvent.CreateProcessInfo.hFile);
                     break;
 
                 case Native.LOAD_DLL_DEBUG_EVENT:
@@ -184,8 +198,15 @@ public unsafe class Obex
             Native.ContinueDebugEvent(debugEvent.dwProcessId, debugEvent.dwThreadId, continueStatus);
         }
 
-        if (_hProc != IntPtr.Zero) Native.CloseHandle(_hProc);
-        if (pi.hThread != IntPtr.Zero) Native.CloseHandle(pi.hThread);
+        if (_hProc != IntPtr.Zero)
+        {
+            Native.CloseHandle(_hProc);
+        }
+
+        if (pi.hThread != IntPtr.Zero)
+        {
+            Native.CloseHandle(pi.hThread);
+        }
     }
 
     private void HandleLoadDll(DebugEvent debugEvent)
@@ -208,11 +229,11 @@ public unsafe class Obex
             Native.CloseHandle(debugEvent.LoadDll.hFile);
         }
 
-        var isNtdll = string.Equals(dllName, "ntdll.dll", StringComparison.OrdinalIgnoreCase);
+        var isNtdll = string.Equals(dllName, Imports.NtDll, StringComparison.OrdinalIgnoreCase);
 
         if (!isNtdll)
         {
-            var localNtdll = Native.GetModuleHandle("ntdll.dll");
+            var localNtdll = Native.GetModuleHandle(Imports.NtDll);
             if (localNtdll != IntPtr.Zero && debugEvent.LoadDll.lpBaseOfDll == localNtdll)
             {
                 isNtdll = true;
@@ -230,8 +251,8 @@ public unsafe class Obex
         {
             _remoteNtdllBase = debugEvent.LoadDll.lpBaseOfDll;
 
-            var localNtdll = Native.GetModuleHandle("ntdll.dll");
-            var localLdr = Native.GetProcAddress(localNtdll, "LdrLoadDll");
+            var localNtdll = Native.GetModuleHandle(Imports.NtDll);
+            var localLdr = Native.GetProcAddress(localNtdll, Native.LdrLoadDll);
 
             if (localNtdll != IntPtr.Zero && localLdr != IntPtr.Zero)
             {
@@ -241,7 +262,7 @@ public unsafe class Obex
                     var firstByte = *(byte*)localLdr;
                     if (firstByte == 0xE9)
                     {
-                        LogWarning("Local LdrLoadDll starts with JMP (0xE9). Offset calculation may be incorrect due to local hooks!");
+                        LogWarning($"Local {Native.LdrLoadDll} starts with JMP (0xE9). Offset calculation may be incorrect due to local hooks!");
                     }
                 }
 
@@ -249,7 +270,7 @@ public unsafe class Obex
                 _remoteLdrAddr = new IntPtr(_remoteNtdllBase + offset);
 
                 SetBreakpoint(_remoteLdrAddr, out _origBytes);
-                LogInfo($"Hooked LdrLoadDll at 0x{_remoteLdrAddr:X} (ntdll at 0x{_remoteNtdllBase:X})");
+                LogInfo($"Hooked {Native.LdrLoadDll} at 0x{_remoteLdrAddr:X} (ntdll at 0x{_remoteNtdllBase:X})");
             }
         }
     }
@@ -373,7 +394,7 @@ public unsafe class Obex
             }
 
             // --- Zero out the BaseAddress Output (Arg4) ---
-            ulong zero = 0;
+            const ulong zero = 0;
             if (arg4_ResultPtr != 0)
             {
                 WriteRemote((IntPtr)arg4_ResultPtr, BitConverter.GetBytes(zero), 8);
@@ -428,10 +449,16 @@ public unsafe class Obex
 
     private void RearmAfterSingleStep(DebugEvent de)
     {
-        if (_remoteLdrAddr == IntPtr.Zero || de.dwThreadId != _pendingRearmTid) return;
+        if (_remoteLdrAddr == IntPtr.Zero || de.dwThreadId != _pendingRearmTid)
+        {
+            return;
+        }
 
         var hThread = Native.OpenThread(Native.THREAD_ALL_ACCESS, false, de.dwThreadId);
-        if (hThread == IntPtr.Zero) return;
+        if (hThread == IntPtr.Zero)
+        {
+            return;
+        }
 
         // Determine Context Size
         var ctxSize = _isArm64 ? Marshal.SizeOf(typeof(ContextArm64)) : Marshal.SizeOf(typeof(Context64));
@@ -494,7 +521,11 @@ public unsafe class Obex
 
     private bool ShouldBlockDll(string? dllPath)
     {
-        if (string.IsNullOrEmpty(dllPath)) return false;
+        if (string.IsNullOrEmpty(dllPath))
+        {
+            return false;
+        }
+
         var fname = Path.GetFileName(dllPath);
 
         foreach (var pattern in _dllBlockPatterns)
@@ -502,7 +533,10 @@ public unsafe class Obex
             if (pattern.Contains('*') || pattern.Contains('?'))
             {
                 var regexPattern = "^" + Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
-                if (Regex.IsMatch(fname, regexPattern, RegexOptions.IgnoreCase)) return true;
+                if (Regex.IsMatch(fname, regexPattern, RegexOptions.IgnoreCase))
+                {
+                    return true;
+                }
             }
             else if (string.Equals(fname, pattern, StringComparison.OrdinalIgnoreCase))
             {
@@ -515,8 +549,11 @@ public unsafe class Obex
     private bool SetBreakpoint(IntPtr addr, out byte[] savedBytes)
     {
         savedBytes = new byte[_bpBytes.Length];
-        if (!ReadRemote(addr, savedBytes, _bpBytes.Length)) return false;
-        
+        if (!ReadRemote(addr, savedBytes, _bpBytes.Length))
+        {
+            return false;
+        }
+
         var ok = WriteCode(addr, _bpBytes, _bpBytes.Length);
         return ok;
     }
@@ -529,13 +566,21 @@ public unsafe class Obex
     private bool WriteRemote(IntPtr addr, byte[] buffer, int size)
     {
         var res = Native.WriteProcessMemory(_hProc, addr, buffer, size, out var bytesWritten) && bytesWritten == size;
-        if (res) Native.FlushInstructionCache(_hProc, addr, (uint)size);
+        if (res)
+        {
+            Native.FlushInstructionCache(_hProc, addr, (uint)size);
+        }
+
         return res;
     }
 
     private bool WriteCode(IntPtr addr, byte[] buffer, int size)
     {
-        if (!Native.VirtualProtectEx(_hProc, addr, (uint)size, Native.PAGE_READWRITE, out var oldProt)) return false;
+        if (!Native.VirtualProtectEx(_hProc, addr, (uint)size, Native.PAGE_READWRITE, out var oldProt))
+        {
+            return false;
+        }
+
         var ok = WriteRemote(addr, buffer, size);
         Native.VirtualProtectEx(_hProc, addr, (uint)size, oldProt, out _);
         return ok;
@@ -546,26 +591,34 @@ public unsafe class Obex
     private static void PrintBanner()
     {
         Console.WriteLine("""
-
-                             ____  _              _   _      _   
-                            / __ \| |            | \ | |    | |  
-                           | |  | | |__   ___  __|  \| | ___| |_ 
-                           | |  | | '_ \ / _ \/ _` . ` |/ _ \ __|
-                           | |__| | |_) |  __/ (_| |\  |  __/ |_ 
-                            \____/|_.__/ \___|\__,_| \_|\___|\__|
+                            *
+                             ____  _                  _   _      _   
+                            / __ \| |                | \ | |    | |  
+                           | |  | | |__   ___ __  __ |  \| | ___| |_ 
+                           | |  | | '_ \ / _ \|_\/_| | . ` |/ _ \ __|
+                           | |__| | |_) |  __/  /\   |  \  |  __/ |_ 
+                            \____/|_.__/ \___||_|\_| ,_| \_|\___|\__|
                                                                  
                           """);
     }
 
     private void LogInfo(string message)
     {
-        if (_silentMode || _jsonOutput) return;
+        if (_silentMode || _jsonOutput)
+        {
+            return;
+        }
+
         Console.WriteLine($"[+] {message}");
     }
 
     private void LogWarning(string message)
     {
-        if (_jsonOutput) return;
+        if (_jsonOutput)
+        {
+            return;
+        }
+        Console.WriteLine();
         Console.WriteLine($"[!] {message}");
     }
 
@@ -584,6 +637,7 @@ public unsafe class Obex
         }
         else
         {
+            Console.WriteLine();
             Console.WriteLine($"[-] ERROR: {message}");
         }
     }
@@ -591,8 +645,11 @@ public unsafe class Obex
     [SuppressMessage("ReSharper", "UnusedParameter.Local")]
     private void LogDebug(string message)
     {
-        if (_silentMode || _jsonOutput) return;
-        
+        if (_silentMode || _jsonOutput)
+        {
+            return;
+        }
+
 #if DEBUG
         Console.WriteLine($"[Debug] {message}");
 #endif

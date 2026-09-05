@@ -9,6 +9,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.gitignore = .gitignore
 		global.json = global.json
 		ObexNet.sln = ObexNet.sln
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ObexNet.Tests", "Tests\ObexNet.Tests\ObexNet.Tests.csproj", "{D58835C0-3BE1-48B7-9A07-D0BC8FCB26F1}"

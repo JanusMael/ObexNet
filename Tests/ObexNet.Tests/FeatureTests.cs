@@ -2,7 +2,7 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 
-namespace ObexNet.Tests;
+namespace Bennewitz.Ninja.ObexNet.Tests;
 
 [TestClass]
 public class FeatureTests : TestFixture
@@ -31,7 +31,10 @@ public class FeatureTests : TestFixture
     {
         var obexExe = GetObexPath();
         var testDll = GetTestDllPath();
-        if (string.IsNullOrEmpty(testDll)) Assert.Inconclusive("TestDll not found");
+        if (string.IsNullOrEmpty(testDll))
+        {
+            Assert.Inconclusive("TestDll not found");
+        }
 
         var systemFolder = Environment.GetFolderPath(Environment.SpecialFolder.System);
         var regsvr32 = Path.Combine(systemFolder, "regsvr32.exe");
@@ -71,7 +74,11 @@ public class FeatureTests : TestFixture
     {
         var obexExe = GetObexPath();
         var testDll = GetTestDllPath();
-        if (string.IsNullOrEmpty(testDll)) Assert.Inconclusive("TestDll not found");
+		
+        if (string.IsNullOrEmpty(testDll))
+        {
+            Assert.Inconclusive("TestDll not found");
+        }
 
         var systemFolder = Environment.GetFolderPath(Environment.SpecialFolder.System);
         var regsvr32 = Path.Combine(systemFolder, "regsvr32.exe");

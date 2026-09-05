@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Runtime.Versioning;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace ObexNet.Tests;
+namespace Bennewitz.Ninja.ObexNet.Tests;
 
 public abstract class TestFixture
 {
@@ -12,10 +12,7 @@ public abstract class TestFixture
     protected TestFixture()
     {
         // Ensure we are running in a 64-bit process (x64 or Arm64)
-        if (IntPtr.Size == 4)
-        {
-            throw new PlatformNotSupportedException("ObexNet tests must be run in a 64-bit process. 32-bit architecture is not supported.");
-        }
+        AssemblyUtility.GetSupportedArchitectureOrThrow();
     }
 
     protected static string GetTargetFrameworkMoniker()
@@ -67,11 +64,11 @@ public abstract class TestFixture
         var tfm = GetTargetFrameworkMoniker();
 
         // Dynamic TFM usage
-        var path = Path.Combine(solutionDir.FullName, "ObexNet", "bin", buildConfig, tfm, "ObexNet.exe");
+        var path = Path.Combine(solutionDir.FullName, AssemblyUtility.ApplicationName, "bin", buildConfig, tfm, $"{AssemblyUtility.ApplicationName}.exe");
         
         if (!File.Exists(path))
         {
-            Assert.Fail($"ObexNet.exe not found at calculated path: {path}. Please build the ObexNet project.");
+            Assert.Fail($"{AssemblyUtility.ApplicationName}.exe not found at calculated path: {path}. Please build the {AssemblyUtility.ApplicationName} project.");
         }
         return path;
     }
@@ -80,7 +77,10 @@ public abstract class TestFixture
     {
         // 1. Check local output (standard for ProjectReference)
         var localPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DllName);
-        if (File.Exists(localPath)) return localPath;
+        if (File.Exists(localPath))
+        {
+            return localPath;
+        }
 
         // 2. Search known locations relative to solution root
         var solutionDir = GetSolutionRoot();
@@ -88,9 +88,12 @@ public abstract class TestFixture
         var tfm = GetTargetFrameworkMoniker();
 
         var path = Path.Combine(
-            solutionDir.FullName, "Tests", "ObexNet.Tests", "bin", buildConfig, tfm, DllName);
+            solutionDir.FullName, "Tests", $"{AssemblyUtility.ApplicationName}.Tests", "bin", buildConfig, tfm, DllName);
 
-        if (File.Exists(path)) return path;
+        if (File.Exists(path))
+        {
+            return path;
+        }
 
         Assert.Fail($"{DllName} not found. Checked: {path}");
         return "";

@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-namespace ObexNet;
+namespace Bennewitz.Ninja.ObexNet;
 
 [SuppressMessage("ReSharper", "UnusedMethodReturnValue.Local")]
 [SuppressMessage("ReSharper", "RedundantUnsafeContext")]
@@ -8,10 +8,7 @@ public static unsafe class Program
 {
     private static void Main(string[] args)
     {
-        if (IntPtr.Size == 4)
-        {
-            throw new PlatformNotSupportedException("ObexNet only supports 64-bit architectures (x64/Arm64). 32-bit is not supported.");
-        }
+        AssemblyUtility.GetSupportedArchitectureOrThrow();
 
         if (args.Length < 1)
         {
@@ -88,13 +85,13 @@ public static unsafe class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: ObexNet.exe \"<command>\" [patterns] [options]");
+        Console.WriteLine($"Usage: {AssemblyUtility.ApplicationName}.exe \"<command>\" [patterns] [options]");
         Console.WriteLine("Options:");
         Console.WriteLine("  --silent          Suppress banner and non-essential logs");
         Console.WriteLine("  --json            Output logs in JSON format");
         Console.WriteLine("  --interactive     Ask before blocking");
         Console.WriteLine("  --fake-success    Return Success instead of Not Found (experimental)");
         Console.WriteLine("  --follow-children Follow child processes (experimental)");
-        Console.WriteLine("\nExample: ObexNet.exe \"cmd.exe\" \"amsi.dll,api-ms-win-*\" --json");
+        Console.WriteLine($"\nExample: {AssemblyUtility.ApplicationName}.exe \"cmd.exe\" \"amsi.dll,api-ms-win-*\" --json");
     }
 }

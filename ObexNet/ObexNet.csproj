@@ -9,6 +9,8 @@
         <PlatformTarget>x64</PlatformTarget>
         <!-- Essential: Required for pointer arithmetic and P/Invoke pointers -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Company>Bennewitz.Ninja.ObexNet</Company>
+        <RootNamespace>Bennewitz.Ninja.ObexNet</RootNamespace>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

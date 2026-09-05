@@ -1,7 +1,8 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Diagnostics;
+using Win64;
 
-namespace ObexNet.Tests;
+namespace Bennewitz.Ninja.ObexNet.Tests;
 
 [TestClass]
 public class IntegrationTests : TestFixture
@@ -25,9 +26,10 @@ public class IntegrationTests : TestFixture
             Console.WriteLine("STDOUT:\n" + output);
             Console.WriteLine("STDERR:\n" + error);
 
-            Assert.IsTrue(output.Contains("[+] Hooked LdrLoadDll"), "ObexNet failed to hook LdrLoadDll.");
-            Assert.IsTrue(output.Contains("Blocked loading of"), "ObexNet did not report blocking action.");
-            Assert.IsTrue(output.Contains(DllName), "ObexNet did not block the specific target DLL.");
+            var applicationName = AssemblyUtility.ApplicationName;
+            Assert.IsTrue(output.Contains($"[+] Hooked {Native.LdrLoadDll}"), $"{applicationName} failed to hook {Native.LdrLoadDll}.");
+            Assert.IsTrue(output.Contains("Blocked loading of"), $"{applicationName} did not report blocking action.");
+            Assert.IsTrue(output.Contains(DllName), $"{applicationName} did not block the specific target DLL.");
         }
     }
 
@@ -58,11 +60,15 @@ public class IntegrationTests : TestFixture
             p.WaitForExit();
 
             Console.WriteLine("STDOUT:\n" + output);
-            if (!string.IsNullOrEmpty(error)) Console.WriteLine("STDERR:\n" + error);
+            if (!string.IsNullOrEmpty(error))
+            {
+                Console.WriteLine("STDERR:\n" + error);
+            }
 
-            Assert.IsTrue(output.Contains("[+] Hooked LdrLoadDll"), "ObexNet failed to hook LdrLoadDll.");
+            var applicationName = AssemblyUtility.ApplicationName;
+            Assert.IsTrue(output.Contains($"[+] Hooked {Native.LdrLoadDll}"), $"{applicationName} failed to hook {Native.LdrLoadDll}.");
             Assert.IsTrue(output.Contains("[+] Child exited"), "Child process did not exit cleanly.");
-            Assert.IsFalse(output.Contains("Blocked loading of"), "ObexNet blocked a DLL unexpectedly.");
+            Assert.IsFalse(output.Contains("Blocked loading of"), $"{applicationName} blocked a DLL unexpectedly.");
         }
     }
 }

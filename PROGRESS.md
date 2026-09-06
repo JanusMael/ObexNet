@@ -37,9 +37,7 @@ the ordinary build output.
 
 ## Open items
 
-- Repository created at `https://github.com/JanusMael/ObexNet`; the badge and release URLs already target that owner/repo, so no path edits are needed. A local git remote may still need adding + a first push before CI runs (the last checked state had no remote configured).
-- CI has not run on a runner yet. Both workflows parse as valid YAML and every command they run has been executed locally — including a full rehearsal of the release job's sequence, publish both RIDs → unpack → test — but no run has been observed green on GitHub. The trimmed-binary test steps in `publish-check` and `publish-windows` are the least certain part: the suite spawns a target under `DEBUG_PROCESS` and drives `regsvr32`, which has not been tried under GitHub's `windows-latest`. The first push will exercise this.
+- Pushed to `main` at `9f0276b` (repo `https://github.com/JanusMael/ObexNet`; badge/release URLs already match). The first CI run is therefore triggered, but its outcome has **not been observed** — verify it on the Actions tab. The trimmed-binary test steps in `publish-check` and `publish-windows` are the least certain part: the suite spawns a target under `DEBUG_PROCESS` and drives `regsvr32`, which has not been tried under GitHub's `windows-latest`. Everything the workflows run was rehearsed locally (publish both RIDs → unpack → test), but never on a runner.
 - `win-arm64` publishes clean (verified locally: exit 0, zero ILLink diagnostics, 5.8 MB archive) but has never been *run* — this host is x64 and GitHub offers no Windows ARM64 runner. Only the x64 binary is behaviourally tested, on either machine.
-- `.github/WORKFLOWS.md` predates the trimmed-binary test steps: it describes `publish-check` as publish-only, and the release's `publish-windows` as publish-and-upload with no gate between them.
 - CodeQL scanning (`codeql.yml` in ClaudeForge) deliberately not carried over; drop-in if wanted.
-- `Tests/ObexNet.Tests/ObexNet.Tests.csproj` `RootNamespace` reads `Bennewitz.Ninja.ObextNet.Tests` (typo). Source files declare their namespace explicitly, so it is cosmetic.
+- No first release cut yet — the Release workflow only fires on a `v*.*.*` tag, so no published binary exists on GitHub. Binaries also ship unsigned (`release.yml` has the `WINDOWS_SIGNING_CERT` scaffolding, no cert wired).

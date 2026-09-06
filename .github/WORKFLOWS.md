@@ -17,7 +17,7 @@ archive creation.
  any branch push  ──────────────────────────────────────────────────────────────
    │                                                                            │
    ├─▶ CI › build-and-test   windows   restore → Debug build → test (TRX)       │
-   └─▶ CI › publish-check    windows   publish.ps1 -Rids win-x64 → zip artifact │
+   └─▶ CI › publish-check    windows   publish.ps1 → test trimmed exe → zip     │
                                                                                 │
  any PR  ──────────────────────────────────────────────────────────────────────┘
    (same two jobs as branch push above; concurrency group cancels stale runs)
@@ -26,9 +26,9 @@ archive creation.
    │
    └─▶ Release › test                windows   fail-fast: true
          │  (must pass)
-         └─▶ Release › publish-windows     publish.ps1 -Rids win-x64,win-arm64
-               │
-               └─▶ Release › release        create GitHub Release + upload archives
+         └─▶ Release › publish-windows     publish.ps1 -Rids win-x64,win-arm64 →
+               │                           test the trimmed win-x64 exe (gate) → upload
+               └─▶ Release › release        create GitHub Release + attach archives
 
  Monday 09:00 UTC  ─────────────────────────────────────────────────────────────
    └─▶ Dependabot            NuGet + GitHub Actions version checks → open PRs
@@ -52,7 +52,7 @@ commit lands on the same branch or PR.
 | Job | Runner | What it does |
 |-----|--------|-------------|
 | `build-and-test` | windows | Restore → Debug build → test with TRX results uploaded as artifacts (14-day retention). |
-| `publish-check` | windows | Invokes `pwsh publish/publish.ps1 -Rids win-x64`. Same entry point the release path uses, so a broken self-contained / trimmed publish is caught on every push. The resulting `ObexNet-win-x64.zip` is kept as a 7-day artifact, so every commit yields a downloadable binary for ad-hoc testing. |
+| `publish-check` | windows | Invokes `pwsh publish/publish.ps1 -Rids win-x64` (the same entry point the release path uses), then unpacks the archive and re-runs the full test suite against the published `ObexNet.exe` (via the `OBEXNET_EXE` override). So it catches not just a broken self-contained / trimmed publish, but a trimmed binary that publishes cleanly yet misbehaves at runtime. Uploads the trimmed-binary TRX (14-day) and the `ObexNet-win-x64.zip` (7-day — a downloadable binary for ad-hoc testing). |
 
 The CI badge in the README reflects the status of the most recent run on the
 default branch.
@@ -77,6 +77,13 @@ test (windows, fail-fast) ─── PASS ───▶ publish-windows ───�
 
 Both RIDs are produced by one job; the win-arm64 runtime pack cross-publishes
 from the x64 runner.
+
+Before uploading, `publish-windows` unpacks the win-x64 archive and re-runs the
+full test suite against the published `ObexNet.exe` (via `OBEXNET_EXE`). That step
+sits **before** the artifact upload, and `release` needs `publish-windows`, so a
+binary that fails the suite never reaches a GitHub Release. win-arm64 is not run —
+GitHub offers no Windows ARM64 runner — so only the x64 archive is behaviourally
+verified; the arm64 archive ships publish-verified only.
 
 #### Versioning
 

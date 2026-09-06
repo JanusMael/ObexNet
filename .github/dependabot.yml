@@ -1,0 +1,38 @@
+version: 2
+
+updates:
+
+  # ── NuGet packages ──────────────────────────────────────────────────────────
+  # Covers the test-project PackageReferences and the Bennewitz.Ninja.AutoVersioning
+  # reference hoisted into Directory.Build.props.
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    groups:
+      # MSTest.TestAdapter and MSTest.TestFramework are versioned in lockstep — group
+      # them so a single PR bumps both and the test project stays consistent.
+      mstest:
+        patterns:
+          - "MSTest*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

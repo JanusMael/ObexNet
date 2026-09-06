@@ -1,0 +1,35 @@
+<Project>
+
+    <!--
+      Strip non-distributable files from the publish output.
+
+      The publish output directory is the authoritative list of what goes into the release zip,
+      so publish/publish.ps1 can archive whatever `dotnet publish` produces without any extra
+      filtering. Two categories are excluded here:
+
+      *.xml — XML documentation produced by <GenerateDocumentationFile>true</> in ObexNet.csproj.
+              Useful for IDE IntelliSense, not needed at runtime.
+
+      *.pdb — PDB symbol files. Release builds use DebugType=embedded (Directory.Build.props), so
+              in-tree assemblies produce no loose .pdb at all; this rule catches any that a future
+              NuGet dependency might drop into the output.
+
+      Implementation notes:
+      - ResolvedFileToPublish is the item list the SDK uses to copy files into the publish
+        output folder. Removing entries here suppresses the copy; the build output under bin/
+        is unaffected.
+      - AfterTargets="ComputeFilesToPublish" runs after the SDK has populated
+        ResolvedFileToPublish but before files are physically copied.
+      - This file (Directory.Build.targets) is imported at the END of the SDK import chain,
+        after all SDK targets are defined, which is why targets that hook into SDK targets via
+        AfterTargets/BeforeTargets must live here and not in Directory.Build.props (imported at
+        the beginning, before SDK targets exist).
+    -->
+    <Target Name="ExcludeNonDistributableFromPublish" AfterTargets="ComputeFilesToPublish">
+        <ItemGroup>
+            <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                                   Condition="'%(Extension)' == '.xml' Or '%(Extension)' == '.pdb'"/>
+        </ItemGroup>
+    </Target>
+
+</Project>

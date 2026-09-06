@@ -28,6 +28,9 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# Publish output (publish/publish.ps1)
+dist/
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 
@@ -49,6 +52,9 @@ CodeCoverage/
 
 # MSTest test Results
 [Tt]est[Rr]esult*/
+# Hyphenated form: both workflows pass --results-directory ./test-results and
+# ./test-results-trimmed, which the un-hyphenated pattern above does not match.
+[Tt]est-[Rr]esult*/
 [Bb]uild[Ll]og.*
 
 # NUnit

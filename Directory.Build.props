@@ -1,0 +1,70 @@
+<Project>
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- Turn the generator ON for the consuming projects -->
+        <GenerateAutoVersionedAssemblyInfo>true</GenerateAutoVersionedAssemblyInfo>
+
+        <!-- Company and product names; consumed by the source generator at build time.
+             AutoVersioning always emits the attribute as "<AssemblyProduct> v<version>" — e.g.
+             AssemblyProduct("ObexNet v2026.3.905.1826") — and offers no switch to drop the suffix,
+             so AssemblyProductAttribute never holds a bare name. AssemblyUtility.ApplicationName
+             therefore reads the simple assembly name; the test fixture derives the path to
+             ObexNet.exe (and the usage banner text) from that. Keep this value free of a version
+             or the About/product metadata gains a second one. -->
+        <AssemblyCompany>Bennewitz.Ninja</AssemblyCompany>
+        <AssemblyProduct>ObexNet</AssemblyProduct>
+        <CopyrightHolder>Brian Bennewitz</CopyrightHolder>
+
+        <!-- Map CI environment variables to the MSBuild properties the generator reads.
+             Replace $(GITHUB_SHA) / $(GITHUB_ACTIONS) with your CI provider's equivalents,
+             e.g. GitLab: $(CI_COMMIT_SHA) / $(GITLAB_CI), Bitbucket: $(BITBUCKET_COMMIT) / $(CI).
+             PublicVersion needs no mapping: the release workflow exports it as an environment
+             variable (MSBuild surfaces those as properties) and publish/publish.ps1 -Version
+             passes it as -p:PublicVersion for local builds. -->
+        <CommitSha Condition="'$(CommitSha)' == ''">$(GITHUB_SHA)</CommitSha>
+        <IsContinuousIntegration>$(GITHUB_ACTIONS)</IsContinuousIntegration>
+    </PropertyGroup>
+
+    <!--
+      PDB policy — applies to all projects in the solution unless a project overrides.
+
+      Debug:   portable PDB (separate .pdb file alongside the assembly).
+               Portable format is cross-platform and required for local source-stepping;
+               the separate file is expected and convenient in the debug output directory.
+
+      Release: embedded PDB (debug info baked directly into the managed assembly).
+               No separate .pdb file is produced, so there are no loose symbol files to
+               exclude from the release zip, and when PublishSingleFile bundles the
+               assembly into ObexNet.exe the symbols travel with it automatically.
+    -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DebugType>portable</DebugType>
+        <DebugSymbols>true</DebugSymbols>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>embedded</DebugType>
+        <DebugSymbols>true</DebugSymbols>
+    </PropertyGroup>
+
+    <!-- AutoVersioning source generator — applies to every project in the solution.
+         The generator is gated by GenerateAutoVersionedAssemblyInfo=true above; its build props
+         switch the SDK's own GenerateAssemblyInfo off so the two never emit duplicate attributes.
+
+         PrivateAssets="all" keeps the generator from flowing transitively to consumers (it is a
+         build-time tool, not a runtime dependency). IncludeAssets enumerates the asset types the
+         generator legitimately needs at build time. -->
+    <ItemGroup>
+        <PackageReference Include="Bennewitz.Ninja.AutoVersioning" Version="2026.3.819">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+</Project>

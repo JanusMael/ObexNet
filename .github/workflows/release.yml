@@ -1,0 +1,299 @@
+name: Release
+
+# Triggered by a version tag: v1.2.3 or v1.2.3-rc.1 (pre-release)
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Required to create the GitHub Release, upload assets, and read PR bodies.
+permissions:
+  contents: write
+  pull-requests: read   # needed to read PR body for release notes
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  APP_NAME: ObexNet
+
+# ── Variables and secrets mapping ────────────────────────────────────────────
+# Configure under Settings → Secrets and variables → Actions on the repository.
+#
+# This workflow delegates all build work to `publish/publish.ps1` — the same
+# script developers run locally. The Bennewitz.Ninja.AutoVersioning source
+# generator (wired in Directory.Build.props) reads the PublicVersion MSBuild
+# property to stamp the assembly; MSBuild surfaces environment variables as
+# properties, so the publish job exports PublicVersion from the tag below.
+#
+# Repository secrets (Settings → Secrets → Actions → New repository secret):
+#
+#   WINDOWS_SIGNING_CERT   Base64-encoded Authenticode certificate (.pfx).
+#                          Apply after publish on windows-latest, before the
+#                          artifact upload step in publish-windows:
+#                            run: |
+#                              echo "${{ secrets.WINDOWS_SIGNING_CERT }}" | base64 -d > cert.pfx
+#                              # Sign ObexNet.exe inside each produced .zip
+#                              # (unzip → signtool → zip back). signtool.exe ships in the
+#                              # Windows 10 SDK already installed on windows-latest runners.
+#
+#   WINDOWS_CERT_PASSWORD  Passphrase protecting the .pfx file.
+#
+# Repository variables (Settings → Variables → Actions → New repository variable):
+#   These override the workflow-level env defaults defined above.
+#
+#   APP_NAME               Release-title prefix and download-table heading, e.g. 'ObexNet'.
+#                          NOTE: the archive filenames are produced by publish.ps1 and use
+#                          the project name (ObexNet) directly — changing APP_NAME here
+#                          only affects the release title and the download-table heading.
+
+jobs:
+
+  # ── Gate: tests must pass before anything is published ──────────────────────
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest]   # Windows only — see the note in ci.yml
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.x'
+
+      - run: dotnet restore ObexNet.sln
+
+      # Debug mirrors the CI workflow. This job gates on the source being good; the
+      # Release publish shape (self-contained, single-file, trimmed) is both produced
+      # and run against this same suite by the publish-windows job below, before any
+      # artefact is uploaded — so repeating the Release shape here adds no value.
+      - run: dotnet build ObexNet.sln --no-restore -c Debug
+
+      - run: dotnet test ObexNet.sln --no-build -c Debug
+
+  # ── Publish via publish/publish.ps1 ─────────────────────────────────────────
+  #
+  # publish.ps1 is the canonical entry point — same script developers run
+  # locally (`pwsh publish/publish.ps1`). One job produces both Windows RIDs;
+  # the win-arm64 runtime pack cross-publishes from the x64 runner.
+  #
+  # PublicVersion (tag without the leading `v`) → AutoVersioning generator →
+  # assembly version attributes. Result naming: ObexNet-<rid>.zip — unversioned,
+  # so local dev builds and CI builds share one filename pattern; the release
+  # tag carries the version.
+  publish-windows:
+    name: Publish (Windows)
+    needs: test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.x'
+
+      # Exported via GITHUB_ENV (not a job-level env:) so there is exactly one
+      # definition of PublicVersion and it is already stripped of the `v`.
+      - name: Extract version from tag
+        shell: bash
+        run: echo "PublicVersion=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Publish (win-x64, win-arm64)
+        shell: pwsh
+        # `shell: pwsh` already runs this `run:` block inside pwsh. Calling the
+        # script directly lets pwsh's expression parser turn
+        # -Rids win-x64,win-arm64 into a real array; an inner
+        # `pwsh publish/publish.ps1 ...` would pass it as ONE string and fail
+        # the script's [ValidateSet].
+        run: ./publish/publish.ps1 -Rids win-x64,win-arm64
+
+      # ── Release gate: the artefact itself must pass the suite ────────────────
+      #
+      # The `test` job above proves the source is good; it says nothing about the
+      # binary being uploaded, which is trimmed and single-file. Trimming can remove
+      # code an untrimmed build keeps, so a clean publish is not evidence of a working
+      # executable — the reflection-based JSON path failed exactly this way and was
+      # caught only by running the published exe.
+      #
+      # Placed before the upload deliberately: a failure here fails this job, and the
+      # `release` job needs it, so nothing reaches a GitHub Release. Only win-x64 is
+      # exercised — the runner is x64, and GitHub offers no Windows ARM64 runner, so
+      # the arm64 archive ships publish-verified but not behaviour-verified.
+      - name: Build test assemblies (Debug)
+        run: dotnet build ObexNet.sln -c Debug
+
+      - name: Unpack published executable (win-x64)
+        shell: pwsh
+        run: Expand-Archive -Path dist/ObexNet-win-x64.zip -DestinationPath dist/trimmed -Force
+
+      # Absolute path on purpose: the test host's working directory is its own output
+      # folder, not the workspace root, so a relative path would not resolve.
+      - name: Test the published trimmed binary
+        shell: pwsh
+        env:
+          OBEXNET_EXE: ${{ github.workspace }}\dist\trimmed\ObexNet.exe
+        run: >
+          dotnet test ObexNet.sln
+          --no-build -c Debug
+          --logger "trx;LogFileName=release-trimmed.trx"
+          --results-directory ./test-results-trimmed
+
+      - name: Upload trimmed-binary test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-trimmed-release
+          path: ./test-results-trimmed/*.trx
+          retention-days: 14
+
+      # Binaries ship unsigned; see the WINDOWS_SIGNING_CERT note above.
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-windows
+          path: dist/*.zip
+          retention-days: 1
+          if-no-files-found: error
+
+  # ── Create the GitHub Release ───────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: publish-windows
+    runs-on: ubuntu-latest
+
+    steps:
+      # Full history is required for two reasons:
+      #   1. git log -1 --format='%b' reads the tagged commit's message body.
+      #   2. gh release create --generate-notes (fallback path) diffs between tags.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # Download the platform artifacts into a flat ./artifacts/ directory.
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Detect pre-release
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            echo "PRERELEASE_FLAG=--prerelease" >> "$GITHUB_ENV"
+          else
+            echo "PRERELEASE_FLAG=" >> "$GITHUB_ENV"
+          fi
+
+      # Determine the changelog source in priority order:
+      #
+      #   1. PR merge  — the tag's commit SHA matches the merge commit of a PR.
+      #                  The PR body is the author-written changelog; use it directly.
+      #                  Convention: write your changelog in the PR description.
+      #
+      #   2. Direct push — no associated PR.  The commit message body (everything
+      #                  after the first blank line) becomes the changelog.
+      #                  Convention: multi-line commit messages with changelog markdown.
+      #
+      #   3. Fallback  — commit has no body either.  GitHub's --generate-notes
+      #                  auto-produces a categorised list of merged PRs and commits
+      #                  since the previous release tag (see .github/release.yml for
+      #                  label-to-section mapping).
+      - name: Resolve changelog source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+
+          # The Commits → Pulls API returns PRs whose merge commit matches SHA.
+          PR_NUMBER=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+            --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          if [[ -n "$PR_NUMBER" ]]; then
+            echo "Changelog source: PR #${PR_NUMBER} body"
+            gh pr view "$PR_NUMBER" --json body --jq '.body' > changelog-content.md
+            echo "CHANGELOG_SOURCE=pr" >> "$GITHUB_ENV"
+          else
+            COMMIT_BODY=$(git log -1 --format='%b' HEAD)
+            if [[ -n "$COMMIT_BODY" ]]; then
+              echo "Changelog source: commit message body"
+              printf '%s' "$COMMIT_BODY" > changelog-content.md
+              echo "CHANGELOG_SOURCE=commit" >> "$GITHUB_ENV"
+            else
+              echo "Changelog source: --generate-notes fallback"
+              echo "CHANGELOG_SOURCE=generate" >> "$GITHUB_ENV"
+            fi
+          fi
+
+      # Part 1 of the notes file: download table + install note.
+      # Part 2: the changelog section (PR body / commit body / nothing — auto-generated
+      #         notes are appended by GitHub after Part 1 in the fallback path).
+      #
+      # Filename pattern is fixed by publish/publish.ps1: ObexNet-<rid>.zip
+      - name: Write release notes
+        run: |
+          cat > release-notes.md << EOF
+          ## Downloads
+
+          | Platform | Architecture | File                                    |
+          |----------|--------------|-----------------------------------------|
+          | Windows  | x64          | \`${{ env.APP_NAME }}-win-x64.zip\`    |
+          | Windows  | ARM64        | \`${{ env.APP_NAME }}-win-arm64.zip\`  |
+
+          Each archive contains a self-contained \`${{ env.APP_NAME }}.exe\` — no .NET
+          runtime install is required on the target machine — together with \`LICENSE\`
+          and \`THIRD-PARTY-NOTICES.md\`.
+
+          The version (${{ env.VERSION }}) is encoded in the release tag rather than in the
+          archive filenames — publish.ps1 produces unversioned artefact names so local dev
+          builds and CI builds share one filename pattern.
+
+          The binary is unsigned; Windows SmartScreen may prompt on first run.
+
+          ObexNet is released under the MIT License. It is a C# port of
+          [obex](https://github.com/dis0rder0x00/obex) (BSD 3-Clause); the upstream
+          copyright notice and license are retained in \`THIRD-PARTY-NOTICES.md\`, included
+          in each archive.
+
+          ---
+          EOF
+
+          if [[ "$CHANGELOG_SOURCE" != "generate" ]]; then
+            {
+              echo ""
+              echo "## What's Changed"
+              echo ""
+              cat changelog-content.md
+            } >> release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # When an explicit changelog exists (PR body or commit message body),
+          # --notes-file alone is used and the release shows exactly what was written.
+          # When neither exists, --generate-notes asks GitHub to auto-produce a
+          # categorised PR/commit list (bucketed by PR labels per .github/release.yml).
+          EXTRA_FLAGS=""
+          [[ "$CHANGELOG_SOURCE" == "generate" ]] && EXTRA_FLAGS="--generate-notes"
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "${{ env.APP_NAME }} ${{ env.VERSION }}" \
+            --notes-file release-notes.md \
+            $EXTRA_FLAGS \
+            ${{ env.PRERELEASE_FLAG }} \
+            artifacts/${{ env.APP_NAME }}-win-x64.zip \
+            artifacts/${{ env.APP_NAME }}-win-arm64.zip

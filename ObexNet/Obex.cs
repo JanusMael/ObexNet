@@ -622,17 +622,15 @@ public sealed unsafe class Obex
         Console.WriteLine($"[!] {message}");
     }
 
-    [SuppressMessage("ReSharper", "RedundantAnonymousTypePropertyName")]
     private void LogError(string message)
     {
         if (_jsonOutput)
         {
             var json = JsonSerializer.Serialize(
-                new
-                {
-                    type = "error",
-                    message = message 
-                });
+                new JsonError(
+                    Type: "error",
+                    Message: message),
+                ObexJsonContext.Default.JsonError);
             Console.WriteLine(json);
         }
         else
@@ -655,20 +653,17 @@ public sealed unsafe class Obex
 #endif
     }
 
-    [SuppressMessage("ReSharper", "RedundantAnonymousTypePropertyName")]
     private void LogEvent(string type, string target)
     {
         if (_jsonOutput)
         {
             var json = JsonSerializer.Serialize(
-                new 
-                { 
-                    timestamp = DateTime.UtcNow,
-                    type = type, 
-                    target = target,
-                    action = _fakeSuccess ? "fake_success" : "block"
-                }
-            );
+                new JsonEvent(
+                    Timestamp: DateTime.UtcNow,
+                    Type: type,
+                    Target: target,
+                    Action: _fakeSuccess ? "fake_success" : "block"),
+                ObexJsonContext.Default.JsonEvent);
             Console.WriteLine(json);
         }
         else

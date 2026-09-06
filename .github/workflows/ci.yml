@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']   # every branch push; tag pushes are excluded by GitHub's branch filter
+  pull_request:
+
+# Cancel any in-flight run for the same branch/PR the moment a new commit arrives.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+# ── Variables and secrets mapping ────────────────────────────────────────────
+# Configure under Settings → Secrets and variables → Actions on the repository.
+#
+# No secrets are required.
+#
+# Repository variables (Settings → Variables → Actions → New repository variable):
+#
+#   DOTNET_VERSION         .NET SDK version string, e.g. '10.x'.  Replace the
+#                          hardcoded '10.x' in each setup-dotnet step:
+#                            dotnet-version: ${{ vars.DOTNET_VERSION || '10.x' }}
+
+jobs:
+
+  # ── Build & test ────────────────────────────────────────────────────────────
+  # Windows only: ObexNet drives the Win32 debugging API (spawns the target
+  # under DEBUG_PROCESS and hooks LdrLoadDll), and the integration tests run
+  # ObexNet.exe against regsvr32. Nothing here can build-and-test elsewhere.
+  # The matrix form is kept so the job shape matches the sibling repositories.
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore
+        run: dotnet restore ObexNet.sln
+
+      - name: Build (Debug)
+        run: dotnet build ObexNet.sln --no-restore -c Debug
+
+      - name: Test
+        run: >
+          dotnet test ObexNet.sln
+          --no-build -c Debug
+          --logger "trx;LogFileName=results.trx"
+          --results-directory ./test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ matrix.os }}
+          path: ./test-results/*.trx
+          retention-days: 14
+
+  # ── Verify the Release publish still succeeds ───────────────────────────────
+  # Runs the real publish path (self-contained, single-file, trimmed) through
+  # publish/publish.ps1 — the same entry point the release workflow uses — so a
+  # trim regression or a broken publish shape is caught on every push, not only
+  # on release tags. TreatWarningsAsErrors makes any ILLink warning fatal here.
+  # The resulting zip is uploaded as a short-lived artifact: every commit yields
+  # a downloadable ObexNet.exe for ad-hoc testing.
+  publish-check:
+    name: Publish Check (Release win-x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.x'
+
+      - name: Publish (win-x64)
+        shell: pwsh
+        run: ./publish/publish.ps1 -Rids win-x64
+
+      # Build the test assemblies against the ordinary (untrimmed) output, then re-run the very
+      # same tests with OBEXNET_EXE pointed at the published executable. Without this step the
+      # suite only ever exercises the framework-dependent build, and a trimming regression that
+      # produces a clean publish but a broken binary — silently empty --json output, say — ships
+      # green. TestFixture.GetObexPath honours the variable; nothing else in the suite changes.
+      - name: Build test assemblies (Debug)
+        run: dotnet build ObexNet.sln -c Debug
+
+      - name: Unpack published executable
+        shell: pwsh
+        run: Expand-Archive -Path dist/ObexNet-win-x64.zip -DestinationPath dist/trimmed -Force
+
+      # Absolute path on purpose: the test host's working directory is its own output folder,
+      # not the workspace root, so a relative path would not resolve.
+      - name: Test against the published trimmed binary
+        shell: pwsh
+        env:
+          OBEXNET_EXE: ${{ github.workspace }}\dist\trimmed\ObexNet.exe
+        run: >
+          dotnet test ObexNet.sln
+          --no-build -c Debug
+          --logger "trx;LogFileName=trimmed.trx"
+          --results-directory ./test-results-trimmed
+
+      - name: Upload trimmed-binary test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-trimmed-win-x64
+          path: ./test-results-trimmed/*.trx
+          retention-days: 14
+
+      - name: Upload publish output
+        uses: actions/upload-artifact@v7
+        with:
+          name: publish-check-win-x64
+          path: dist/*.zip
+          retention-days: 7
+          if-no-files-found: error

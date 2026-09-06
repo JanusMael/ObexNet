@@ -1,31 +1,36 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
+    <!-- TargetFramework, Nullable, ImplicitUsings, TreatWarningsAsErrors, the debug-symbol policy
+         and the AutoVersioning generator are inherited from Directory.Build.props at the repo root. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <!-- Essential: The register logic is specific to 64-bit processors -->
-        <PlatformTarget>x64</PlatformTarget>
+        <RootNamespace>Bennewitz.Ninja.ObexNet</RootNamespace>
         <!-- Essential: Required for pointer arithmetic and P/Invoke pointers -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <Company>Bennewitz.Ninja.ObexNet</Company>
-        <RootNamespace>Bennewitz.Ninja.ObexNet</RootNamespace>
+        <!-- One AnyCPU binary serves both x64 and ARM64 hosts (see README "Extended Features");
+             AssemblyUtility.GetSupportedArchitectureOrThrow rejects 32-bit processes at startup. -->
+        <PlatformTarget>AnyCPU</PlatformTarget>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>1701;1702;CS1591</NoWarn>
     </PropertyGroup>
 
-    <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-      <DocumentationFile>bin\Debug\ObexNet.xml</DocumentationFile>
-      <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-      <NoWarn>1701;1702;CS1591</NoWarn>
-      <PlatformTarget>AnyCPU</PlatformTarget>
-    </PropertyGroup>
+    <!--
+      DISTRIBUTION & PUBLISHING CONFIGURATION
+      Produces a self-contained, single-file, trimmed ObexNet.exe per RID — the analysis machine
+      does NOT need .NET installed. publish/publish.ps1 is the canonical entry point
+      (`dotnet publish -c Release -r win-x64` produces the same output).
 
-    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-      <DebugSymbols>true</DebugSymbols>
-      <DocumentationFile>bin\Release\ObexNet.xml</DocumentationFile>
-      <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-      <NoWarn>1701;1702;CS1591</NoWarn>
-      <PlatformTarget>AnyCPU</PlatformTarget>
+      Gated on _IsPublishing (set by `dotnet publish`) rather than on Configuration=Release so a
+      plain `dotnet build -c Release` stays framework-dependent and RID-less: SelfContained=true on
+      its own makes the SDK auto-pick the host RID and move the output under
+      bin/Release/net10.0/<rid>/, which would break the test fixture's
+      ObexNet/bin/<Config>/<tfm>/ObexNet.exe lookup.
+    -->
+    <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+        <SelfContained>true</SelfContained>
+        <PublishSingleFile>true</PublishSingleFile>
+        <PublishTrimmed>true</PublishTrimmed>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     </PropertyGroup>
 
 </Project>

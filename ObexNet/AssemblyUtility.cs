@@ -8,21 +8,30 @@ public static class AssemblyUtility
     public static readonly string ApplicationName = GetApplicationName(typeof(AssemblyUtility));
     
     /// <summary>
-    /// Retrieves the product name from the <see cref="AssemblyProductAttribute"/> of the entry assembly.
+    /// Retrieves the bare application name — <c>ObexNet</c> — from the declaring assembly's
+    /// simple name.
     /// </summary>
-    /// <returns>
-    /// The product name specified in the assembly attributes, or <c>null</c> if the attribute is not found.
-    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="AssemblyProductAttribute"/> is deliberately not used. The
+    /// <c>Bennewitz.Ninja.AutoVersioning</c> generator wired up in <c>Directory.Build.props</c>
+    /// always stamps the product as <c>"&lt;AssemblyProduct&gt; v&lt;version&gt;"</c> — for this
+    /// repository, <c>"ObexNet v2026.3.905.1826"</c> — and exposes no switch to drop the suffix,
+    /// so that attribute can never carry a bare name.
+    /// </para>
+    /// <para>
+    /// <see cref="AssemblyName.Name"/> carries no version, requires no attribute to survive
+    /// trimming in the published single-file build, and equals the executable's base name, which
+    /// is what <c>TestFixture.GetObexPath</c> composes the path to <c>ObexNet.exe</c> from.
+    /// </para>
+    /// </remarks>
+    /// <returns>The application name, falling back to <c>ObexNet</c> if the assembly is unnamed.</returns>
     private static string GetApplicationName(this Type type)
     {
-        // Get the assembly that started the application (usually the executable)
+        // The assembly that declares this type — i.e. the executable.
         var assembly = type.Assembly;
 
-        // Retrieve the AssemblyProductAttribute
-        var attribute = assembly.GetCustomAttribute<AssemblyProductAttribute>();
-
-        // Return the Product property value
-        return attribute?.Product ?? nameof(ObexNet);
+        return assembly.GetName().Name ?? nameof(ObexNet);
     }
     
     public static Architecture GetSupportedArchitectureOrThrow()

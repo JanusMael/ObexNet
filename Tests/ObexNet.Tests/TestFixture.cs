@@ -25,12 +25,12 @@ public abstract class TestFixture
             var frameworkName = new FrameworkName(attr.FrameworkName);
             if (frameworkName.Identifier == ".NETCoreApp")
             {
-                // Converts ".NETCoreApp,Version=v8.0" to "net8.0"
+                // Converts ".NETCoreApp,Version=v10.0" to "net10.0"
                 return $"net{frameworkName.Version.Major}.{frameworkName.Version.Minor}";
             }
         }
         
-        return "net8.0"; // Fallback default
+        return "net10.0"; // Fallback default
     }
     
     protected static string GetBuildConfig(DirectoryInfo currentDir)
@@ -57,8 +57,30 @@ public abstract class TestFixture
         return null; // Unreachable
     }
 
+    /// <summary>
+    /// Environment variable that overrides which <c>ObexNet.exe</c> the suite exercises.
+    /// </summary>
+    /// <remarks>
+    /// Unset, the suite runs against the ordinary build output, which is framework-dependent and
+    /// untrimmed. That build cannot vouch for the binary users actually download: publish/publish.ps1
+    /// produces a self-contained, single-file, <em>trimmed</em> executable, and trimming removes code
+    /// an untrimmed build keeps. Point this variable at the published executable to run the same
+    /// assertions against the shipping artefact.
+    /// </remarks>
+    protected const string ObexPathOverrideVariable = "OBEXNET_EXE";
+
     protected static string GetObexPath()
     {
+        var overridePath = Environment.GetEnvironmentVariable(ObexPathOverrideVariable);
+        if (!string.IsNullOrWhiteSpace(overridePath))
+        {
+            if (!File.Exists(overridePath))
+            {
+                Assert.Fail($"{ObexPathOverrideVariable} is set to '{overridePath}', but no file exists at that path.");
+            }
+            return overridePath;
+        }
+
         var solutionDir = GetSolutionRoot();
         var buildConfig = GetBuildConfig(new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory));
         var tfm = GetTargetFrameworkMoniker();

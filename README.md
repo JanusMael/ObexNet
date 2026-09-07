@@ -173,7 +173,7 @@ This publishes a self-contained, single-file, trimmed `ObexNet.exe` per Windows 
 
 ### Versioning
 
-Assembly version attributes are stamped at build time by the [`Bennewitz.Ninja.AutoVersioning`](https://www.nuget.org/packages/Bennewitz.Ninja.AutoVersioning) source generator. On a release, the tag `v1.2.3` becomes the published binary's public version; local builds fall back to a date-based version, or you can set one with `pwsh publish/publish.ps1 -Version 1.2.3`.
+Releases use **CalVer** — `vYEAR.QUARTER.MMDD` (e.g. `v2026.3.907` = 2026, Q3, 7 September; add a `-rc.1` suffix for a pre-release). Pushing such a tag stamps the published binary's version through the [`Bennewitz.Ninja.AutoVersioning`](https://www.nuget.org/packages/Bennewitz.Ninja.AutoVersioning) source generator. Local builds fall back to the generator's own CalVer build version, or you can set one with `pwsh publish/publish.ps1 -Version 2026.3.907`.
 
 ## License
 

@@ -42,7 +42,7 @@
     pwsh publish/publish.ps1
 
 .EXAMPLE
-    pwsh publish/publish.ps1 -Rids win-x64 -Version 1.2.3
+    pwsh publish/publish.ps1 -Rids win-x64 -Version 2026.3.907
 
 .EXAMPLE
     pwsh publish/publish.ps1 -Clean

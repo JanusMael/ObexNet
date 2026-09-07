@@ -23,7 +23,7 @@ the ordinary build output.
 | Shared MSBuild settings | `Directory.Build.props` | TFM `net10.0`, nullable, implicit usings, warnings-as-errors, Debug portable / Release embedded PDBs, AutoVersioning generator — hoisted out of the three csproj files |
 | SDK pin | `global.json` | `10.0.100` floor, `rollForward: latestFeature` (same policy as the sibling repositories) |
 | Publish hygiene | `Directory.Build.targets` | Strips `*.xml` / `*.pdb` from publish output |
-| Versioning | `Directory.Build.props` | `Bennewitz.Ninja.AutoVersioning` 2026.3.819; `PublicVersion` comes from the release tag (CI) or `publish.ps1 -Version` (local) |
+| Versioning | `Directory.Build.props`, `.github/WORKFLOWS.md` | `Bennewitz.Ninja.AutoVersioning` 2026.3.819; `PublicVersion` comes from the release tag (CI) or `publish.ps1 -Version` (local). Releases use **CalVer** `vYEAR.QUARTER.MMDD` (e.g. `v2026.3.907`), matching ClaudeForge and the generator's own `YEAR.QUARTER.MMDD.HHmm` format; documented in WORKFLOWS.md + README |
 | Publish shape | `ObexNet/ObexNet.csproj` | Self-contained, single-file, trimmed; gated on `_IsPublishing` so `dotnet build -c Release` keeps the RID-less output path the test fixture expects. Verified: 11.4 MB, one file per archive |
 | Trim safety | `ObexNet/JsonEvents.cs` | `--json` payloads are named records behind a source-generated `JsonSerializerContext`; the reflection-based serializer overload is `IL2026` and cannot be used while `PublishTrimmed` is on |
 | App name | `ObexNet/AssemblyUtility.cs` | `ApplicationName` reads the simple assembly name. `AssemblyProductAttribute` is unusable for this: AutoVersioning always appends ` v<version>` and offers no switch to suppress it |

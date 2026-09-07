@@ -61,7 +61,7 @@ default branch.
 
 ### `workflows/release.yml` — Release
 
-**Trigger:** push of a tag matching `v*.*.*` (e.g. `v1.2.3`, `v1.2.3-rc.1`)
+**Trigger:** push of a CalVer tag matching `v*.*.*` (e.g. `v2026.3.907`, `v2026.3.907-rc.1` — see [Versioning](#versioning))
 **Permissions:** `contents: write` (create release + upload assets),
 `pull-requests: read` (read PR body for release notes)
 
@@ -79,6 +79,13 @@ Both RIDs are produced by one job; the win-arm64 runtime pack cross-publishes
 from the x64 runner.
 
 Before uploading, `publish-windows` unpacks the win-x64 archive and re-runs the
+full test suite against the published `ObexNet.exe` (via the `OBEXNET_EXE`
+override). This gate sits *before* the artifact upload, and `release` needs
+`publish-windows`, so a binary that fails the suite never reaches a GitHub Release.
+win-arm64 is not run — GitHub has no Windows ARM64 runner — so only the x64 archive
+is behaviourally verified.
+
+Before uploading, `publish-windows` unpacks the win-x64 archive and re-runs the
 full test suite against the published `ObexNet.exe` (via `OBEXNET_EXE`). That step
 sits **before** the artifact upload, and `release` needs `publish-windows`, so a
 binary that fails the suite never reaches a GitHub Release. win-arm64 is not run —
@@ -86,6 +93,18 @@ GitHub offers no Windows ARM64 runner — so only the x64 archive is behavioural
 verified; the arm64 archive ships publish-verified only.
 
 #### Versioning
+
+Releases follow **CalVer**, matching the sibling repositories (e.g. ClaudeForge)
+and the `Bennewitz.Ninja.AutoVersioning` generator's own format
+(`YEAR.QUARTER.MMDD.HHmm`). Release tags drop the time component:
+
+    vYEAR.QUARTER.MMDD        e.g.  v2026.3.907  =  2026, Q3, 7 September
+
+- **YEAR** — calendar year.
+- **QUARTER** — calendar quarter 1-4 (Jan-Mar = 1, Apr-Jun = 2, Jul-Sep = 3, Oct-Dec = 4).
+- **MMDD** — month then day, month unpadded (`907` = Sep 7, `1225` = Dec 25).
+
+Append a hyphen suffix for a pre-release (`v2026.3.907-rc.1`).
 
 `publish-windows` exports `PublicVersion=<tag without the leading v>` into the
 job environment. MSBuild surfaces environment variables as properties, and the
@@ -95,15 +114,16 @@ job environment. MSBuild surfaces environment variables as properties, and the
 time. No `<Version>` element is maintained by hand anywhere in the repository.
 
 Local runs of `pwsh publish/publish.ps1` without `-Version` get the generator's
-date-based build version; pass `-Version 1.2.3` to reproduce a tagged build.
+own CalVer build version (with the `.HHmm` time component); pass
+`-Version 2026.3.907` to reproduce a tagged build.
 
 Archive filenames are unversioned (`ObexNet-<rid>.zip`) so local dev builds and
 CI builds share one filename pattern — the release tag carries the version.
 
 #### Pre-release detection
 
-Any tag containing a hyphen (`v1.2.3-rc.1`, `v2.0.0-beta.2`) is published as a
-pre-release on the Releases page. A plain `v1.2.3` tag creates a full release.
+Any tag containing a hyphen (`v2026.3.907-rc.1`, `v2026.3.907-beta.2`) is published
+as a pre-release on the Releases page. A plain `v2026.3.907` tag creates a full release.
 
 #### Release notes strategy
 
@@ -124,12 +144,12 @@ source is used.
 # 1. Merge your PR (or push directly with a detailed commit message).
 
 # 2. Tag the resulting commit:
-git tag v1.2.3
-git push --tags
+git tag v2026.3.907          # vYEAR.QUARTER.MMDD — see Versioning above
+git push origin v2026.3.907
 
 # Pre-release:
-git tag v1.2.3-rc.1
-git push --tags
+git tag v2026.3.907-rc.1
+git push origin v2026.3.907-rc.1
 ```
 
 The workflow fires automatically, runs the tests, builds both archives, and
@@ -212,8 +232,8 @@ A developer can reproduce exactly what CI does:
 # Reproduces the publish-check job (CI windows runner):
 pwsh publish/publish.ps1 -Rids win-x64
 
-# Reproduces the publish-windows job for tag v1.2.3:
-pwsh publish/publish.ps1 -Rids win-x64,win-arm64 -Version 1.2.3
+# Reproduces the publish-windows job for tag v2026.3.907:
+pwsh publish/publish.ps1 -Rids win-x64,win-arm64 -Version 2026.3.907
 ```
 
 When CI fails and a local run passes (or vice versa), the divergence is almost

@@ -1,6 +1,6 @@
 name: Release
 
-# Triggered by a version tag: v1.2.3 or v1.2.3-rc.1 (pre-release)
+# Triggered by a CalVer tag vYEAR.QUARTER.MMDD, e.g. v2026.3.907 or v2026.3.907-rc.1 (pre-release)
 on:
   push:
     tags:

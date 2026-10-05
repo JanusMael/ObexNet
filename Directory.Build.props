@@ -61,7 +61,7 @@
          build-time tool, not a runtime dependency). IncludeAssets enumerates the asset types the
          generator legitimately needs at build time. -->
     <ItemGroup>
-        <PackageReference Include="Bennewitz.Ninja.AutoVersioning" Version="2026.3.819">
+        <PackageReference Include="Bennewitz.Ninja.AutoVersioning" Version="2026.3.928">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
